@@ -8,6 +8,7 @@ st.title("🔹 Energy Pricing Uplift Calculator (Per Band)")
 
 # Upload CSV file
 uploaded_file = st.file_uploader("Upload your flat file CSV", type="csv")
+st.write("Columns in your file:", df.columns.tolist())
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
