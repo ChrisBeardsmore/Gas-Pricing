@@ -57,7 +57,7 @@ uplift_table = st.data_editor(
         )
     }
 )
-        )
+        
 
         # Step 3: Select weighting logic
         st.subheader("Step 2: Define weighting between Standing Charge and Unit Rate")
