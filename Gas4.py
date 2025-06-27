@@ -18,26 +18,45 @@ if uploaded_file:
     if "Minimum Annual Consumption" not in df.columns or "Maximum Annual Consumption" not in df.columns:
         st.error("The file must include 'Minimum Annual Consumption' and 'Maximum Annual Consumption' columns.")
     else:
-        # Step 2: Define uplift values for each consumption band
-        st.subheader("Step 1: Enter uplift per consumption band (in points of a penny)")
+       # Step 2: Define uplift values for each consumption band
+st.subheader("Step 1: Enter uplift per consumption band (in points of a penny)")
 
-        uplift_table = (
-            df[["Minimum Annual Consumption", "Maximum Annual Consumption"]]
-            .drop_duplicates()
-            .sort_values(by="Minimum Annual Consumption")
-            .reset_index(drop=True)
+uplift_table = (
+    df[["Minimum Annual Consumption", "Maximum Annual Consumption"]]
+    .drop_duplicates()
+    .sort_values(by="Minimum Annual Consumption")
+    .reset_index(drop=True)
+)
+
+uplift_table["StandingChargeUpliftPoints"] = 0.0
+uplift_table["UnitRateUpliftPoints"] = 0.0
+
+uplift_table = st.data_editor(
+    uplift_table,
+    num_rows="dynamic",
+    hide_index=True,
+    use_container_width=True,
+    height=600,
+    key="uplift_table",
+    column_config={
+        "Minimum Annual Consumption": st.column_config.NumberColumn(
+            "Min Consumption", disabled=True
+        ),
+        "Maximum Annual Consumption": st.column_config.NumberColumn(
+            "Max Consumption", disabled=True
+        ),
+        "StandingChargeUpliftPoints": st.column_config.NumberColumn(
+            "Standing Charge Uplift (pts)", 
+            help="Enter uplift in points of a penny (e.g., 2.5 = 0.025)",
+            step=0.1
+        ),
+        "UnitRateUpliftPoints": st.column_config.NumberColumn(
+            "Unit Rate Uplift (pts)",
+            help="Enter uplift in points of a penny (e.g., 1.0 = 0.01)",
+            step=0.1
         )
-
-        uplift_table["StandingChargeUpliftPoints"] = 0.0
-        uplift_table["UnitRateUpliftPoints"] = 0.0
-
-        uplift_table = st.data_editor(
-            uplift_table,
-            num_rows="dynamic",
-            hide_index=True,
-            use_container_width=True,
-            height=600,
-            key="uplift_table"
+    }
+)
         )
 
         # Step 3: Select weighting logic
