@@ -4,7 +4,7 @@ import io
 
 st.set_page_config(page_title="Energy Pricing Uplift Tool", layout="wide")
 st.title("🔹 Energy Pricing Uplift Tool")
-
+pip install XlsxWriter
 # Upload CSV
 uploaded_file = st.file_uploader("Upload your flat file CSV", type="csv")
 
