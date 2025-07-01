@@ -1,2 +1,1 @@
-with pd.ExcelWriter("output.xlsx", engine="xlsxwriter") as writer:
-    df.to_excel(writer, sheet_name="Summary")
+XlsxWriter
