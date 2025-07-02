@@ -2,105 +2,87 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-# App title
 st.set_page_config(page_title="Gas Pricing Uplift Tool", layout="wide")
-st.title("💼 Gas Pricing Uplift Tool")
+st.title("Gas Pricing Uplift Tool")
 
-st.markdown(
-    """
-    **Instructions:**
-    - Upload your flat file CSV.
-    - Enter uplifts for each contract length (p/kWh and p/day).
-    - Differentiate uplifts for CarbonOffset: Yes or No.
-    - Preview uplifted prices.
-    - Download as Excel.
-    """
-)
+st.write("Upload your pricing CSV file:")
 
-# File upload
-uploaded_file = st.file_uploader("Upload your gas flat file CSV", type="csv")
+uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
 
-if uploaded_file:
+if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
-    # Drop all unnamed columns (e.g., Unnamed: 17, etc.)
+    # Remove all Unnamed columns
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
 
-    # Show original columns to verify
-    st.subheader("Original Data Sample (Cleaned)")
-    st.dataframe(df.head())
+    st.write("Detected columns:", df.columns.tolist())
 
-    # Confirm required columns exist
+    # Check expected columns
     expected_cols = [
-        "Postcode", "MPAN", "StartDate", "EndDate",
-        "ContractLength", "ConsumptionBand",
-        "StandingCharge", "UnitRate", "CarbonOffset"
+        "ContractDuration",
+        "MinimumAnnualConsumption",
+        "MaximumAnnualConsumption",
+        "StandingCharge",
+        "UnitRate",
+        "CarbonOffset"
     ]
+
     if not all(col in df.columns for col in expected_cols):
         st.error("One or more expected columns are missing.")
         st.stop()
 
-    st.subheader("Set Uplifts (in pence)")
+    # Uplift inputs
+    st.sidebar.header("Enter Uplifts")
 
-    # Create dictionaries for uplifts by contract length and CarbonOffset
-    uplifts = {}
-    for contract_length in [1, 2, 3]:
-        st.markdown(f"**Contract Length: {contract_length} Year(s)**")
-        col1, col2 = st.columns(2)
-        with col1:
-            unit_no = st.number_input(
-                f"Unit Rate Uplift (p/kWh) - CarbonOffset NO (Year {contract_length})",
-                min_value=0.0, step=0.01, key=f"unit_no_{contract_length}")
-            standing_no = st.number_input(
-                f"Standing Charge Uplift (p/day) - CarbonOffset NO (Year {contract_length})",
-                min_value=0.0, step=0.01, key=f"standing_no_{contract_length}")
-        with col2:
-            unit_yes = st.number_input(
-                f"Unit Rate Uplift (p/kWh) - CarbonOffset YES (Year {contract_length})",
-                min_value=0.0, step=0.01, key=f"unit_yes_{contract_length}")
-            standing_yes = st.number_input(
-                f"Standing Charge Uplift (p/day) - CarbonOffset YES (Year {contract_length})",
-                min_value=0.0, step=0.01, key=f"standing_yes_{contract_length}")
+    # Absolute uplifts in pence
+    standing_uplift = st.sidebar.number_input("Standing Charge Uplift (p/day)", value=0.0, step=0.01)
+    unit_uplift_1yr = st.sidebar.number_input("Unit Rate Uplift (1yr) (p/kWh)", value=0.0, step=0.01)
+    unit_uplift_2yr = st.sidebar.number_input("Unit Rate Uplift (2yr) (p/kWh)", value=0.0, step=0.01)
+    unit_uplift_3yr = st.sidebar.number_input("Unit Rate Uplift (3yr) (p/kWh)", value=0.01, step=0.01)
 
-        uplifts[(contract_length, False)] = {"unit": unit_no, "standing": standing_no}
-        uplifts[(contract_length, True)] = {"unit": unit_yes, "standing": standing_yes}
+    # Carbon uplift
+    carbon_uplift = st.sidebar.number_input("Carbon Offset Uplift (p/kWh)", value=0.0, step=0.01)
 
-    # Function to apply uplift
+    # Function to calculate uplifted prices
     def apply_uplift(row):
-        contract_length = int(row["ContractLength"])
-        carbon = str(row["CarbonOffset"]).strip().lower() in ["yes", "y", "true", "1"]
+        # Select unit uplift by contract duration
+        duration = int(row["ContractDuration"])
+        if duration == 1:
+            unit_uplift = unit_uplift_1yr
+        elif duration == 2:
+            unit_uplift = unit_uplift_2yr
+        elif duration == 3:
+            unit_uplift = unit_uplift_3yr
+        else:
+            unit_uplift = 0.0
 
-        uplift = uplifts.get((contract_length, carbon), {"unit": 0, "standing": 0})
-        uplifted_unit = row["UnitRate"] + uplift["unit"]
-        uplifted_standing = row["StandingCharge"] + uplift["standing"]
-        total_annual_cost = (
-            uplifted_unit * float(row["ConsumptionBand"]) +
-            uplifted_standing * 365 / 100  # assuming pence/day
-        )
-        return pd.Series({
-            "UpliftedUnitRate": round(uplifted_unit, 4),
-            "UpliftedStandingCharge": round(uplifted_standing, 4),
-            "TotalAnnualCost": round(total_annual_cost, 2)
-        })
+        # Carbon uplift
+        if str(row["CarbonOffset"]).strip().lower() in ["yes", "y", "true", "1"]:
+            carbon = carbon_uplift
+        else:
+            carbon = 0.0
 
-    # Apply uplift calculations
-    uplifted_results = df.apply(apply_uplift, axis=1)
+        uplifted_unit_rate = row["UnitRate"] + unit_uplift + carbon
+        uplifted_standing_charge = row["StandingCharge"] + standing_uplift
 
-    # Merge results with original data
-    df_final = pd.concat([df, uplifted_results], axis=1)
+        # Estimated annual cost
+        avg_consumption = (row["MinimumAnnualConsumption"] + row["MaximumAnnualConsumption"]) / 2
+        annual_cost = (avg_consumption * uplifted_unit_rate / 100) + (uplifted_standing_charge * 365 / 100)
 
-    st.subheader("Preview Uplifted Pricing")
-    st.dataframe(df_final.head(20))
+        return pd.Series([uplifted_unit_rate, uplifted_standing_charge, annual_cost])
 
-    # Excel download
+    df[["UpliftedUnitRate", "UpliftedStandingCharge", "TotalAnnualCost"]] = df.apply(apply_uplift, axis=1)
+
+    st.subheader("Preview of Uplifted Data")
+    st.dataframe(df)
+
+    # Download
     output = BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df_final.to_excel(writer, index=False, sheet_name="UpliftedPrices")
-    excel_data = output.getvalue()
-
+        df.to_excel(writer, index=False, sheet_name="UpliftedPrices")
     st.download_button(
-        label="📥 Download Excel File",
-        data=excel_data,
-        file_name="uplifted_gas_prices.xlsx",
+        label="Download Uplifted Prices as Excel",
+        data=output.getvalue(),
+        file_name="uplifted_prices.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
