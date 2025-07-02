@@ -23,8 +23,11 @@ uploaded_file = st.file_uploader("Upload your gas flat file CSV", type="csv")
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
 
+    # Drop all unnamed columns (e.g., Unnamed: 17, etc.)
+    df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+
     # Show original columns to verify
-    st.subheader("Original Data Sample")
+    st.subheader("Original Data Sample (Cleaned)")
     st.dataframe(df.head())
 
     # Confirm required columns exist
