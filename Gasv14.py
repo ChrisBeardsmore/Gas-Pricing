@@ -1,88 +1,123 @@
 import streamlit as st
 import pandas as pd
-from io import BytesIO
+import io
 
-st.set_page_config(page_title="Gas Pricing Uplift Tool", layout="wide")
-st.title("Gas Pricing Uplift Tool")
+# App configuration
+st.set_page_config(page_title="Energy Pricing Uplift Tool", layout="wide")
+st.title("🔹 Energy Pricing Uplift Tool")
 
-st.write("Upload your pricing CSV file:")
+# Upload CSV
+uploaded_file = st.file_uploader("Upload your flat file CSV", type="csv")
 
-uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
-
-if uploaded_file is not None:
+if uploaded_file:
+    # Load and normalize column names
     df = pd.read_csv(uploaded_file)
+    df.columns = [col.strip().replace(" ", "").lower() for col in df.columns]
 
-    # Remove all Unnamed columns
-    df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+    # Remove unnamed columns (if any)
+    df = df.loc[:, ~df.columns.str.contains('^unnamed')]
 
-    st.write("Detected columns:", df.columns.tolist())
+    st.success("✅ File loaded successfully")
+    st.dataframe(df.head())
 
-    # Check expected columns
-    expected_cols = [
-        "ContractDuration",
-        "MinimumAnnualConsumption",
-        "MaximumAnnualConsumption",
-        "StandingCharge",
-        "UnitRate",
-        "CarbonOffset"
+    st.markdown("---")
+    st.subheader("Step 1 – Enter Uplifts (p / kWh and p / day)")
+
+    # Default consumption bands
+    default_bands = [
+        {"Min": 0, "Max": 999},
+        {"Min": 1000, "Max": 24999},
+        {"Min": 25000, "Max": 49999},
+        {"Min": 50000, "Max": 73199},
+        {"Min": 73200, "Max": 124999},
+        {"Min": 125000, "Max": 292999},
+        {"Min": 293000, "Max": 731999},
     ]
 
-    if not all(col in df.columns for col in expected_cols):
-        st.error("One or more expected columns are missing.")
-        st.stop()
+    # Uplift entry
+    band_inputs = []
+    with st.expander("Click to edit uplift bands", expanded=True):
+        for i, band in enumerate(default_bands):
+            st.markdown(f"**Band {i+1}: {band['Min']} - {band['Max']} kWh**")
+            cols = st.columns(6)
+            entry = {
+                "Min": band["Min"],
+                "Max": band["Max"],
+                "1yr_unit_noncarbon": cols[0].number_input(f"1yr Unit (NC)", value=1.0, key=f"1u_nc_{i}"),
+                "1yr_standing_noncarbon": cols[1].number_input(f"1yr Stand (NC)", value=1.0, key=f"1s_nc_{i}"),
+                "2yr_unit_noncarbon": cols[2].number_input(f"2yr Unit (NC)", value=1.0, key=f"2u_nc_{i}"),
+                "2yr_standing_noncarbon": cols[3].number_input(f"2yr Stand (NC)", value=1.0, key=f"2s_nc_{i}"),
+                "3yr_unit_noncarbon": cols[4].number_input(f"3yr Unit (NC)", value=1.0, key=f"3u_nc_{i}"),
+                "3yr_standing_noncarbon": cols[5].number_input(f"3yr Stand (NC)", value=1.0, key=f"3s_nc_{i}")
+            }
+            # Carbon uplift values
+            entry["1yr_unit_carbon"] = cols[0].number_input(f"1yr Unit (C)", value=1.5, key=f"1u_c_{i}")
+            entry["1yr_standing_carbon"] = cols[1].number_input(f"1yr Stand (C)", value=1.5, key=f"1s_c_{i}")
+            entry["2yr_unit_carbon"] = cols[2].number_input(f"2yr Unit (C)", value=1.5, key=f"2u_c_{i}")
+            entry["2yr_standing_carbon"] = cols[3].number_input(f"2yr Stand (C)", value=1.5, key=f"2s_c_{i}")
+            entry["3yr_unit_carbon"] = cols[4].number_input(f"3yr Unit (C)", value=1.5, key=f"3u_c_{i}")
+            entry["3yr_standing_carbon"] = cols[5].number_input(f"3yr Stand (C)", value=1.5, key=f"3s_c_{i}")
+            band_inputs.append(entry)
 
-    # Uplift inputs
-    st.sidebar.header("Enter Uplifts")
+    # Annual consumption input
+    annual_consumption = st.number_input("Annual Consumption (kWh)", min_value=1, value=20000)
 
-    # Absolute uplifts in pence
-    standing_uplift = st.sidebar.number_input("Standing Charge Uplift (p/day)", value=0.0, step=0.01)
-    unit_uplift_1yr = st.sidebar.number_input("Unit Rate Uplift (1yr) (p/kWh)", value=0.0, step=0.01)
-    unit_uplift_2yr = st.sidebar.number_input("Unit Rate Uplift (2yr) (p/kWh)", value=0.0, step=0.01)
-    unit_uplift_3yr = st.sidebar.number_input("Unit Rate Uplift (3yr) (p/kWh)", value=0.01, step=0.01)
+    # Function to get uplift for each row
+    def get_band_uplift(row):
+        consumption = row.get("minimumannualconsumption", 0)
+        # Find matching band
+        band = next((b for b in band_inputs if b["Min"] <= consumption <= b["Max"]), band_inputs[-1])
 
-    # Carbon uplift
-    carbon_uplift = st.sidebar.number_input("Carbon Offset Uplift (p/kWh)", value=0.0, step=0.01)
+        # Contract length
+        try:
+            contract_length = int(row.get("contractduration", 1))
+        except:
+            contract_length = 1
+        if contract_length not in [1, 2, 3]:
+            contract_length = 1
 
-    # Function to calculate uplifted prices
-    def apply_uplift(row):
-        # Select unit uplift by contract duration
-        duration = int(row["ContractDuration"])
-        if duration == 1:
-            unit_uplift = unit_uplift_1yr
-        elif duration == 2:
-            unit_uplift = unit_uplift_2yr
-        elif duration == 3:
-            unit_uplift = unit_uplift_3yr
+        # Carbon offset
+        carbon_raw = str(row.get("carbonoffset", "")).strip().lower()
+        carbon = carbon_raw in ["yes", "y", "true", "1"]
+
+        if carbon:
+            unit = band[f"{contract_length}yr_unit_carbon"]
+            standing = band[f"{contract_length}yr_standing_carbon"]
         else:
-            unit_uplift = 0.0
+            unit = band[f"{contract_length}yr_unit_noncarbon"]
+            standing = band[f"{contract_length}yr_standing_noncarbon"]
 
-        # Carbon uplift
-        if str(row["CarbonOffset"]).strip().lower() in ["yes", "y", "true", "1"]:
-            carbon = carbon_uplift
-        else:
-            carbon = 0.0
+        return pd.Series({
+            "Uplift_Unit": unit,
+            "Uplift_Standing": standing
+        })
 
-        uplifted_unit_rate = row["UnitRate"] + unit_uplift + carbon
-        uplifted_standing_charge = row["StandingCharge"] + standing_uplift
+    # Apply uplift logic
+    uplift_df = df.apply(get_band_uplift, axis=1)
+    df_final = pd.concat([df, uplift_df], axis=1)
 
-        # Estimated annual cost
-        avg_consumption = (row["MinimumAnnualConsumption"] + row["MaximumAnnualConsumption"]) / 2
-        annual_cost = (avg_consumption * uplifted_unit_rate / 100) + (uplifted_standing_charge * 365 / 100)
+    df_final["UnitRate_Uplifted"] = df_final["unitrate"] + df_final["Uplift_Unit"]
+    df_final["StandingCharge_Uplifted"] = df_final["standingcharge"] + df_final["Uplift_Standing"]
 
-        return pd.Series([uplifted_unit_rate, uplifted_standing_charge, annual_cost])
+    df_final["TotalAnnualCost"] = (
+        (df_final["StandingCharge_Uplifted"] * 365) +
+        (df_final["UnitRate_Uplifted"] * annual_consumption)
+    ) / 100
 
-    df[["UpliftedUnitRate", "UpliftedStandingCharge", "TotalAnnualCost"]] = df.apply(apply_uplift, axis=1)
+    # Preview
+    st.subheader("✅ Uplifted Price List Preview")
+    st.dataframe(df_final.head())
 
-    st.subheader("Preview of Uplifted Data")
-    st.dataframe(df)
-
-    # Download
-    output = BytesIO()
+    # Prepare Excel output
+    output = io.BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="UpliftedPrices")
+        df_final.to_excel(writer, index=False, sheet_name="PriceList")
+    output.seek(0)
+
+    # Download button
     st.download_button(
-        label="Download Uplifted Prices as Excel",
-        data=output.getvalue(),
-        file_name="uplifted_prices.xlsx",
+        label="⬇️ Download Broker Price List (Excel)",
+        data=output,
+        file_name="broker_pricelist.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
