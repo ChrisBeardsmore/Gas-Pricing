@@ -86,9 +86,22 @@ if uploaded_file:
         (df_final["Unit Rate"] * annual_consumption)
     ) / 100
 
-    st.subheader("✅ Uplifted Pricing Preview")
-    # You can change this to df_final if you prefer all columns in preview
-    st.dataframe(df_final[["Unit Rate", "Standing Charge", "Total Annual Cost"]].head())
+   st.subheader("✅ Price List Preview")
+
+preview_columns = [col for col in df_final.columns if col not in [
+    "standingcharge",
+    "unitrate",
+    "uplift_unit",
+    "uplift_standing"
+]]
+
+preview_df = df_final[preview_columns].rename(columns={
+    "UnitRate_Uplifted": "Unit Rate",
+    "StandingCharge_Uplifted": "Standing Charge",
+    "TotalAnnualCost": "Total Annual Cost"
+})
+
+st.dataframe(preview_df.head())
 
     # Create clean export DataFrame
     export_cols = [c for c in df.columns if not c.startswith("unnamed")]
