@@ -37,7 +37,7 @@ matrix_columns = [
 matrix_data = pd.DataFrame("", index=range(100), columns=matrix_columns)
 
 # Use experimental data editor
-matrix_df = st.experimental_data_editor(
+matrix_df = st.data_editor(...)
     matrix_data,
     num_rows="dynamic",
     use_container_width=True,
