@@ -128,15 +128,7 @@ if uploaded_file:
         )
 else:
     st.info("Please upload the supplier flat file to begin.")
-✅ This should:
 
-Match on LDZ, Exit Zone, Contract Duration (months), and Consumption range
-
-Provide debug logs on screen for LDZ/Exit Zone mapping
-
-Display any tariffs retrieved from the flat file for visibility
-
-👉 Let me know if you'd like to further enhance logging or add optional logging to a file!
 
 
 
