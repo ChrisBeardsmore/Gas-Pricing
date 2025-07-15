@@ -39,7 +39,7 @@ st.markdown("## 1️⃣ Enter Customer Data")
 
 creditsafe_score = st.number_input("Creditsafe Score (0-100)", min_value=0, max_value=100, value=75)
 years_trading = st.number_input("Years Trading", min_value=0, max_value=100, value=3)
-annual_consumption = st.number_input("Annual Consumption (MWh)", min_value=0.0, value=200.0, step=1.0)
+annual_consumption_kwh = st.number_input("Annual Consumption (kWh)", min_value=0.0, value=200000.0, step=1000.0)
 contract_value = st.number_input("Contract Value (£)", min_value=0.0, value=30000.0, step=1000.0)
 
 st.markdown("## 2️⃣ Adjust Scoring Weights")
@@ -66,7 +66,8 @@ def credit_decision_engine():
     def score_sector(sr):
         return {"Low": 100, "Medium": 75, "High": 50, "Very High": 25}.get(sr, 50)
 
-    def score_consumption(mwh):
+    def score_consumption(kwh):
+        mwh = kwh / 1000
         return 100 if mwh < 100 else 75 if mwh <= 250 else 50 if mwh <= 500 else 25
 
     def score_contract_value(val):
@@ -75,7 +76,7 @@ def credit_decision_engine():
     s1 = score_creditsafe(creditsafe_score) * weight_creditsafe
     s2 = score_years_trading(years_trading) * weight_years_trading
     s3 = score_sector(sic_risk) * weight_sector_risk
-    s4 = score_consumption(annual_consumption) * weight_annual_consumption
+    s4 = score_consumption(annual_consumption_kwh) * weight_annual_consumption
     s5 = score_contract_value(contract_value) * weight_contract_value
 
     total_score = s1 + s2 + s3 + s4 + s5
@@ -120,7 +121,7 @@ def export_to_excel(result):
         "SIC Risk": [sic_risk],
         "Creditsafe Score": [creditsafe_score],
         "Years Trading": [years_trading],
-        "Annual Consumption (MWh)": [annual_consumption],
+        "Annual Consumption (kWh)": [annual_consumption_kwh],
         "Contract Value (£)": [contract_value],
         "Decision": [result['decision']],
         "Total Score": [result['total_score']],
