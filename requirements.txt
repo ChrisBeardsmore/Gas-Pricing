@@ -3,3 +3,4 @@ numpy
 xlsxwriter
 streamlit
 openpyxl
+fpdf
