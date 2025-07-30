@@ -1,4 +1,4 @@
-name: Append GPT Memory via API
+name: 🧠 GPT Quick Log
 
 on:
   workflow_dispatch:
