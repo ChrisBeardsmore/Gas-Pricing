@@ -35,3 +35,8 @@ still working
 
 ### 🕒 2025-07-30T15:29:04Z UTC
 Direct sales tool - testing memory
+
+---
+
+### 🕒 2025-07-30T15:33:00Z UTC
+✅ Memory Log Rule: Every entry starts with a timestamp line like: ### 🕒 2025-07-30T15:29:04Z UTC and includes everything after it up to the next timestamp line.
