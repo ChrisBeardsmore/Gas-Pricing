@@ -1,0 +1,42 @@
+name: Append GPT Memory via API
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Memory note to append'
+        required: true
+      filepath:
+        description: 'Path to the markdown file (e.g., gpt_memory_log.md)'
+        required: false
+        default: 'gpt_memory_log.md'
+
+jobs:
+  update_memory:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Append message via GitHub API
+        env:
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          MESSAGE: ${{ github.event.inputs.message }}
+          FILEPATH: ${{ github.event.inputs.filepath }}
+          REPO: ${{ github.repository }}
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          ENTRY="\n\n---\n\n### 🕒 $TIMESTAMP UTC\n$MESSAGE"
+
+          # Get current file contents
+          RESPONSE=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+                           -H "Accept: application/vnd.github.v3+json" \
+                           https://api.github.com/repos/$REPO/contents/$FILEPATH)
+
+          SHA=$(echo "$RESPONSE" | jq -r .sha)
+          CONTENT=$(echo "$RESPONSE" | jq -r .content | base64 -d)
+          UPDATED_CONTENT=$(echo -e "$CONTENT$ENTRY" | base64 -w 0)
+
+          # Update the file
+          curl -s -X PUT -H "Authorization: Bearer $GH_TOKEN" \
+               -H "Accept: application/vnd.github.v3+json" \
+               https://api.github.com/repos/$REPO/contents/$FILEPATH \
+               -d "{\"message\": \"🧠 Memory entry via API\",\"content\": \"$UPDATED_CONTENT\",\"sha\": \"$SHA\"}"
