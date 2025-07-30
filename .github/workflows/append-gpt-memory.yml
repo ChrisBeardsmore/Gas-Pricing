@@ -42,4 +42,4 @@ jobs:
 
           git add "${{ github.event.inputs.filepath }}"
           git commit -m "🧠 GPT memory update" || echo "No changes to commit"
-          git push origin HEAD
+          git push https://x-access-token:$TOKEN@github.com/${{ github.repository }}.git HEAD:main
