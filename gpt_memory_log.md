@@ -20,3 +20,8 @@ To enable GPT-style enduring memory in any GitHub repository:
 
 ### 🕒 2025-07-30T15:16:59Z UTC
 note
+
+---
+
+### 🕒 2025-07-30T15:19:19Z UTC
+### 🧠 Direct Sales App – Memory Purpose  We implemented GitHub-based enduring memory logging to support our work on the Direct Sales App. It lets us track reasoning, fix history, and decisions across iterations.
